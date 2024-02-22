@@ -4,9 +4,9 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
-	"drexel.edu/todo/db"
-	fake "github.com/brianvoe/gofakeit/v6" //aliasing package name
+	"github.com/adllev/voter-api/db"
 	"github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/assert"
 )
@@ -35,26 +35,40 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// func newRandToDoItem(id int) db.ToDoItem {
-// 	return db.ToDoItem{
-// 		Id:     id,
-// 		Title:  fake.Sentence(5),
-// 		IsDone: fake.Bool(),
-// 	}
-// }
+func Test_AddSingleVoter(t *testing.T) {
+	newVoter := db.Voter{
+		VoterId:     1,
+		Name:        "Jane Smith",
+		Email:       "jane@example.com",
+		VoteHistory: nil,
+	}
 
-// func Test_LoadDB(t *testing.T) {
-// 	numLoad := 3
-// 	for i := 0; i < numLoad; i++ {
-// 		item := newRandToDoItem(i)
-// 		rsp, err := cli.R().
-// 			SetBody(item).
-// 			Post(BASE_API + "/todo")
+	rsp, err := cli.R().
+		SetBody(newVoter).
+		SetResult(&newVoter).
+		Post(BASE_API + "/voters")
 
-// 		assert.Nil(t, err)
-// 		assert.Equal(t, 200, rsp.StatusCode())
-// 	}
-// }
+	assert.Nil(t, err)
+	assert.Equal(t, 200, rsp.StatusCode())
+}
+
+func Test_AddSingleVoterPoll(t *testing.T) {
+	newVoterPoll := db.VoterHistory{
+		PollId:   1,
+		VoteId:   1,
+		VoteDate: time.Now(),
+	}
+
+	rsp, err := cli.R().
+		SetBody(newVoterPoll).
+		SetResult(&newVoterPoll).
+		Post(BASE_API + "/voters/1/polls/1")
+
+	assert.Nil(t, err)
+	assert.Equal(t, 200, rsp.StatusCode())
+
+}
+
 
 func Test_GetAllVoters(t *testing.T) {
 	var items []db.Voter
@@ -64,21 +78,46 @@ func Test_GetAllVoters(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 200, rsp.StatusCode())
 
-	assert.Equal(t, 3, len(items))
+	assert.Equal(t, 1, len(items))
 }
 
-// func Test_DeleteToDo(t *testing.T) {
-// 	var item db.ToDoItem
+func Test_GetSingleVoter(t *testing.T) {
+	var voter db.Voter
 
-// 	rsp, err := cli.R().SetResult(&item).Get(BASE_API + "/todo/2")
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, 200, rsp.StatusCode(), "todo #2 expected")
+	rsp, err := cli.R().SetResult(&voter).Get(BASE_API + "/voters/1")
 
-// 	rsp, err = cli.R().Delete(BASE_API + "/todo/2")
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, 200, rsp.StatusCode(), "todo not deleted expected")
+	assert.Nil(t, err)
+	assert.Equal(t, 200, rsp.StatusCode())
 
-// 	rsp, err = cli.R().SetResult(item).Get(BASE_API + "/todo/2")
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, 404, rsp.StatusCode(), "expected not found error code")
-// }
+	assert.Equal(t, 1, voter.VoterId)
+	assert.Equal(t, "Jane Smith", voter.Name)
+	assert.Equal(t, "jane@example.com", voter.Email)
+}
+
+func Test_GetVoterPolls(t *testing.T) {
+	var voterHistory []db.VoterHistory
+
+	rsp, err := cli.R().SetResult(&voterHistory).Get(BASE_API + "/voters/1/polls")
+
+	assert.Nil(t, err)
+	assert.Equal(t, 200, rsp.StatusCode())
+}
+
+func Test_GetSingleVoterPoll(t *testing.T) {
+	var voterPoll db.VoterHistory
+
+	rsp, err := cli.R().SetResult(&voterPoll).Get(BASE_API + "/voters/1/polls/1")
+
+	assert.Nil(t, err)
+	assert.Equal(t, 200, rsp.StatusCode())
+
+	assert.Equal(t, 1, voterPoll.PollId)
+	assert.Equal(t, 1, voterPoll.VoteId)
+}
+
+func Test_GetVotersHealth(t *testing.T) {
+	rsp, err := cli.R().Get(BASE_API + "/voters/health")
+
+	assert.Nil(t, err)
+	assert.Equal(t, 200, rsp.StatusCode())
+}

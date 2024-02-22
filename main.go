@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"drexel.edu/todo/api"
+	"github.com/adllev/voter-api/api"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/recover"
@@ -76,16 +76,19 @@ func main() {
 	//DELETE - Delete
 
 	app.Get("/voters", apiHandler.ListAllVoters)
-	app.Post("/voters", apiHandler.AddVoter)
-	app.Put("/voters", apiHandler.UpdateVoter)
+	app.Get("/voters/:id<int>", apiHandler.GetVoter)
+	app.Post("/voters", apiHandler.PostVoter)
+	app.Get("/voters/:id<int>/polls", apiHandler.GetVoterPolls)
+	app.Get("/voters/:id<int>/polls/:pollid<int>", apiHandler.GetVoterPoll)
+	app.Post("/voters/:id<int>/polls/:pollid<int>", apiHandler.PostVoterPoll)
+
+	app.Put("/voters/:id<int>", apiHandler.UpdateVoter)
 	app.Delete("/voters", apiHandler.DeleteAllVoters)
 	app.Delete("/voters/:id<int>", apiHandler.DeleteVoter)
-	app.Get("/voters/:id<int>", apiHandler.GetVoter)
+	app.Put("/voters/:id<int>/polls/:pollid<int>", apiHandler.UpdateVoterPoll)
+	app.Delete("/voters/:id<int>/polls/:pollid<int>", apiHandler.DeleteVoterPoll)
 
-	app.Get("/crash", apiHandler.CrashSim)
-	app.Get("/crash2", apiHandler.CrashSim2)
-	app.Get("/crash3", apiHandler.CrashSim3)
-	app.Get("/health", apiHandler.HealthCheck)
+	app.Get("voters/health", apiHandler.HealthCheck)
 
 	serverPath := fmt.Sprintf("%s:%d", hostFlag, portFlag)
 	log.Println("Starting server on ", serverPath)

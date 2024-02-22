@@ -10,7 +10,7 @@ import (
 // VoterHistory is the struct that represents a single VoterHistory item
 type VoterHistory struct{
 	PollId int
-	VoteId int 
+	VoteId int
 	VoteDate time.Time
 }
 
@@ -192,6 +192,102 @@ func (t *VoterList) GetAllVoters() ([]Voter, error) {
 
 	//Now that we have all of our items in a slice, return it
 	return voterList, nil
+}
+
+// GetVoterPolls retrieves the voting history for a specific voter.
+// It takes voter ID as input and returns their voting history as a slice of VoterHistory.
+func (t *VoterList) GetVoterPolls(voterID int) ([]VoterHistory, error) {
+	voter, err := t.GetVoter(voterID)
+	if err != nil {
+		return nil, err
+	}
+
+	return voter.VoteHistory, nil
+}
+
+// GetVoterPoll retrieves a specific voting record for a voter.
+// It takes voter ID and poll ID as input and returns the corresponding VoterHistory if found.
+func (t *VoterList) GetVoterPoll(voterID, pollID int) (VoterHistory, error) {
+	voter, err := t.GetVoter(voterID)
+	if err != nil {
+		return VoterHistory{}, err
+	}
+
+	for _, history := range voter.VoteHistory {
+		if history.PollId == pollID {
+			return history, nil
+		}
+	}
+
+	return VoterHistory{}, errors.New("poll not found for this voter")
+}
+
+// AddVoterPoll adds a new voting record for a voter.
+// It takes voter ID, poll ID, and vote date as input and adds the record to the corresponding voter.
+func (t *VoterList) AddVoterPoll(voterID, pollID int, voteDate time.Time) error {
+	voter, err := t.GetVoter(voterID)
+	if err != nil {
+		return err
+	}
+
+	newVoterHistory := VoterHistory{
+		PollId:   pollID,
+		VoteId:   len(voter.VoteHistory) + 1, // Assuming vote ID increments linearly
+		VoteDate: voteDate,
+	}
+
+	voter.VoteHistory = append(voter.VoteHistory, newVoterHistory)
+
+	err = t.UpdateVoter(voter)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateVoterPoll updates a voting record for a voter.
+// It takes voter ID, poll ID, and new vote date as input and updates the corresponding record.
+func (t *VoterList) UpdateVoterPoll(voterID, pollID int, newVoteDate time.Time) error {
+	voter, err := t.GetVoter(voterID)
+	if err != nil {
+		return err
+	}
+
+	for i, history := range voter.VoteHistory {
+		if history.PollId == pollID {
+			voter.VoteHistory[i].VoteDate = newVoteDate
+			err := t.UpdateVoter(voter)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+
+	return errors.New("poll not found for this voter")
+}
+
+// DeleteVoterPoll deletes a voting record for a voter.
+// It takes voter ID and poll ID as input and removes the corresponding record.
+func (t *VoterList) DeleteVoterPoll(voterID, pollID int) error {
+	voter, err := t.GetVoter(voterID)
+	if err != nil {
+		return err
+	}
+
+	for i, history := range voter.VoteHistory {
+		if history.PollId == pollID {
+			voter.VoteHistory = append(voter.VoteHistory[:i], voter.VoteHistory[i+1:]...)
+			err := t.UpdateVoter(voter)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+
+	return errors.New("poll not found for this voter")
 }
 
 // PrintItem accepts a ToDoItem and prints it to the console

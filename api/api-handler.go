@@ -1,12 +1,10 @@
 package api
 
 import (
-	"fmt"
 	"log"
 	"net/http"
-	"os"
 
-	"drexel.edu/todo/db"
+	"github.com/adllev/voter-api/db"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -84,7 +82,7 @@ func (td *VoterAPI) GetVoter(c *fiber.Ctx) error {
 
 // implementation for POST /todo
 // adds a new todo
-func (td *VoterAPI) AddVoter(c *fiber.Ctx) error {
+func (td *VoterAPI) PostVoter(c *fiber.Ctx) error {
 	var voter db.Voter
 
 	//With HTTP based APIs, a POST request will usually
@@ -156,38 +154,165 @@ func (td *VoterAPI) DeleteAllVoters(c *fiber.Ctx) error {
 	return c.Status(http.StatusOK).SendString("Delete All OK")
 }
 
-/*   SPECIAL HANDLERS FOR DEMONSTRATION - CRASH SIMULATION AND HEALTH CHECK */
+// implementation for GET /voters/:id/polls
+func (td *VoterAPI) GetVoterPolls(c *fiber.Ctx) error {
+	id, err := c.ParamsInt("id")
+	if err != nil {
+		return fiber.NewError(http.StatusBadRequest)
+	}
 
-// implementation for GET /crash
-// This simulates a crash to show some of the benefits of the
-// gin framework
-func (td *VoterAPI) CrashSim(c *fiber.Ctx) error {
-	//panic() is go's version of throwing an exception
-	//note with recover middleware this will not end program
-	panic("Simulating an unexpected crash")
+	voter, err := td.db.GetVoter(id)
+	if err != nil {
+		log.Println("Voter not found: ", err)
+		return fiber.NewError(http.StatusNotFound)
+	}
+
+	return c.JSON(voter.VoteHistory)
 }
 
-func (td *VoterAPI) CrashSim2(c *fiber.Ctx) error {
-	//A stupid crash simulation example
-	i := 0
-	j := 1 / i
-	jStr := fmt.Sprintf("%d", j)
-	return c.Status(http.StatusOK).
-		JSON(fiber.Map{
-			"val_j": jStr,
-		})
+// implementation for GET /voters/:id/polls/:pollid
+func (td *VoterAPI) GetVoterPoll(c *fiber.Ctx) error {
+	voterID, err := c.ParamsInt("id")
+	if err != nil {
+		return fiber.NewError(http.StatusBadRequest)
+	}
+
+	pollID, err := c.ParamsInt("pollid")
+	if err != nil {
+		return fiber.NewError(http.StatusBadRequest)
+	}
+
+	voter, err := td.db.GetVoter(voterID)
+	if err != nil {
+		log.Println("Voter not found: ", err)
+		return fiber.NewError(http.StatusNotFound)
+	}
+
+	for _, history := range voter.VoteHistory {
+		if history.PollId == pollID {
+			return c.JSON(history)
+		}
+	}
+
+	return fiber.NewError(http.StatusNotFound)
 }
 
-func (td *VoterAPI) CrashSim3(c *fiber.Ctx) error {
-	//A stupid crash simulation example
-	os.Exit(10)
-	return c.Status(http.StatusOK).
-		JSON(fiber.Map{
-			"error": "will never get here, nothing you can do about this",
-		})
+// implementation for POST /voters/:id/polls/:pollid
+func (td *VoterAPI) PostVoterPoll(c *fiber.Ctx) error {
+	voterID, err := c.ParamsInt("id")
+	if err != nil {
+		return fiber.NewError(http.StatusBadRequest)
+	}
+
+	pollID, err := c.ParamsInt("pollid")
+	if err != nil {
+		return fiber.NewError(http.StatusBadRequest)
+	}
+
+	var voterHistory db.VoterHistory
+	if err := c.BodyParser(&voterHistory); err != nil {
+		log.Println("Error binding JSON: ", err)
+		return fiber.NewError(http.StatusBadRequest)
+	}
+
+	voter, err := td.db.GetVoter(voterID)
+	if err != nil {
+		log.Println("Voter not found: ", err)
+		return fiber.NewError(http.StatusNotFound)
+	}
+
+	voterHistory.PollId = pollID
+	voter.VoteHistory = append(voter.VoteHistory, voterHistory)
+
+	if err := td.db.UpdateVoter(voter); err != nil {
+		log.Println("Error updating voter: ", err)
+		return fiber.NewError(http.StatusInternalServerError)
+	}
+
+	return c.JSON(voterHistory)
 }
 
-// implementation of GET /health. It is a good practice to build in a
+// implementation for PUT /voters/:id/polls/:pollid
+func (td *VoterAPI) UpdateVoterPoll(c *fiber.Ctx) error {
+	voterID, err := c.ParamsInt("id")
+	if err != nil {
+		return fiber.NewError(http.StatusBadRequest)
+	}
+
+	pollID, err := c.ParamsInt("pollid")
+	if err != nil {
+		return fiber.NewError(http.StatusBadRequest)
+	}
+
+	var updatedHistory db.VoterHistory
+	if err := c.BodyParser(&updatedHistory); err != nil {
+		log.Println("Error binding JSON: ", err)
+		return fiber.NewError(http.StatusBadRequest)
+	}
+
+	voter, err := td.db.GetVoter(voterID)
+	if err != nil {
+		log.Println("Voter not found: ", err)
+		return fiber.NewError(http.StatusNotFound)
+	}
+
+	// Find the index of the history with the given poll ID
+	var index = -1
+	for i, history := range voter.VoteHistory {
+		if history.PollId == pollID {
+			index = i
+			break
+		}
+	}
+
+	if index == -1 {
+		return fiber.NewError(http.StatusNotFound, "Poll not found for the voter")
+	}
+
+	// Update the VoterHistory slice
+	voter.VoteHistory[index] = updatedHistory
+
+	if err := td.db.UpdateVoter(voter); err != nil {
+		log.Println("Error updating voter: ", err)
+		return fiber.NewError(http.StatusInternalServerError)
+	}
+
+	return c.JSON(updatedHistory)
+}
+
+// implementation for DELETE /voters/:id/polls/:pollid
+func (td *VoterAPI) DeleteVoterPoll(c *fiber.Ctx) error {
+	voterID, err := c.ParamsInt("id")
+	if err != nil {
+		return fiber.NewError(http.StatusBadRequest)
+	}
+
+	pollID, err := c.ParamsInt("pollid")
+	if err != nil {
+		return fiber.NewError(http.StatusBadRequest)
+	}
+
+	voter, err := td.db.GetVoter(voterID)
+	if err != nil {
+		log.Println("Voter not found: ", err)
+		return fiber.NewError(http.StatusNotFound)
+	}
+
+	for i, history := range voter.VoteHistory {
+		if history.PollId == pollID {
+			voter.VoteHistory = append(voter.VoteHistory[:i], voter.VoteHistory[i+1:]...)
+			if err := td.db.UpdateVoter(voter); err != nil {
+				log.Println("Error updating voter: ", err)
+				return fiber.NewError(http.StatusInternalServerError)
+			}
+			return c.Status(http.StatusOK).SendString("Delete OK")
+		}
+	}
+
+	return fiber.NewError(http.StatusNotFound)
+}
+
+// implementation of GET /voters/health. It is a good practice to build in a
 // health check for your API.  Below the results are just hard coded
 // but in a real API you can provide detailed information about the
 // health of your API with a Health Check

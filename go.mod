@@ -1,4 +1,4 @@
-module drexel.edu/todo
+module github.com/adllev/voter-api
 
 go 1.21
 
